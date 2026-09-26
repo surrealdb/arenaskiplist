@@ -95,7 +95,6 @@ fn test_deterministic_simulation() {
                         // 40% Point Get & verification
                         let o = oracle.lock().unwrap();
                         let expected = o.get(&key).copied();
-                        drop(o);
 
                         let actual = skl.get(key.as_bytes()).map(|e| {
                             let mut buf = [0u8; 8];
