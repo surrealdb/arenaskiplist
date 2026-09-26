@@ -74,7 +74,7 @@ pub mod list;
 pub mod node;
 pub(crate) mod util;
 
-pub use arena::{Arena, MAX_ARENA_SIZE};
+pub use arena::{Arena, ChunkedArena, DEFAULT_CHUNK_SIZE, MAX_ARENA_SIZE};
 pub use entry::EntryRef;
 pub use error::{Error, Result};
 pub use inserter::Inserter;

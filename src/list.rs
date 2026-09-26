@@ -182,36 +182,79 @@ impl SkipList {
 
     /// Inserts a key-value pair with default version 0.
     #[inline]
-    pub fn insert(&self, key: &[u8], value: &[u8]) -> Result<()> {
+    pub fn insert<K: AsRef<[u8]> + ?Sized, V: AsRef<[u8]> + ?Sized>(
+        &self,
+        key: &K,
+        value: &V,
+    ) -> Result<()> {
         self.insert_with_version(key, 0, value)
     }
 
     /// Inserts a key-value pair with an explicit version.
     ///
     /// When multiple versions of the same key exist, higher versions are ordered first.
-    pub fn insert_with_version(&self, key: &[u8], version: u64, value: &[u8]) -> Result<()> {
+    pub fn insert_with_version<K: AsRef<[u8]> + ?Sized, V: AsRef<[u8]> + ?Sized>(
+        &self,
+        key: &K,
+        version: u64,
+        value: &V,
+    ) -> Result<()> {
         let mut ins = Inserter::new();
-        self.insert_internal(key, version, value, &mut ins)
+        self.insert_internal(key.as_ref(), version, value.as_ref(), &mut ins)
     }
 
     /// Inserts a key-value pair reusing an [`Inserter`] splice cache.
     #[inline]
-    pub fn insert_with_inserter(&self, key: &[u8], value: &[u8], ins: &mut Inserter) -> Result<()> {
-        self.insert_internal(key, 0, value, ins)
+    pub fn insert_with_inserter<K: AsRef<[u8]> + ?Sized, V: AsRef<[u8]> + ?Sized>(
+        &self,
+        key: &K,
+        value: &V,
+        ins: &mut Inserter,
+    ) -> Result<()> {
+        self.insert_internal(key.as_ref(), 0, value.as_ref(), ins)
     }
 
     /// Inserts a key-value pair with an explicit version reusing an [`Inserter`] splice cache.
     #[inline]
-    pub fn insert_with_version_and_inserter(
+    pub fn insert_with_version_and_inserter<K: AsRef<[u8]> + ?Sized, V: AsRef<[u8]> + ?Sized>(
         &self,
-        key: &[u8],
+        key: &K,
         version: u64,
-        value: &[u8],
+        value: &V,
         ins: &mut Inserter,
     ) -> Result<()> {
-        self.insert_internal(key, version, value, ins)
+        self.insert_internal(key.as_ref(), version, value.as_ref(), ins)
     }
 
+    /// Inserts a batch of key-value pairs reusing an [`Inserter`] splice cache.
+    pub fn insert_batch<K: AsRef<[u8]> + ?Sized, V: AsRef<[u8]> + ?Sized>(
+        &self,
+        entries: &[(&K, &V)],
+        ins: &mut Inserter,
+    ) -> Result<()> {
+        for &(k, v) in entries {
+            match self.insert_internal(k.as_ref(), 0, v.as_ref(), ins) {
+                Ok(()) | Err(Error::RecordExists) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
+
+    /// Inserts a batch of versioned key-value pairs reusing an [`Inserter`] splice cache.
+    pub fn insert_versioned_batch<K: AsRef<[u8]> + ?Sized, V: AsRef<[u8]> + ?Sized>(
+        &self,
+        entries: &[(&K, u64, &V)],
+        ins: &mut Inserter,
+    ) -> Result<()> {
+        for &(k, ver, v) in entries {
+            match self.insert_internal(k.as_ref(), ver, v.as_ref(), ins) {
+                Ok(()) | Err(Error::RecordExists) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(())
+    }
     fn insert_internal(
         &self,
         key: &[u8],
@@ -467,9 +510,11 @@ impl SkipList {
     }
 
     /// Finds the newest entry matching `key`.
-    pub fn get(&self, key: &[u8]) -> Option<EntryRef<'_>> {
-        let key_prefix = compute_prefix(key);
-        let (_, next) = self.seek_for_base_splice_with_prefix(key, key_prefix);
+    /// Finds the newest entry matching `key`.
+    pub fn get<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Option<EntryRef<'_>> {
+        let key_bytes = key.as_ref();
+        let key_prefix = compute_prefix(key_bytes);
+        let (_, next) = self.seek_for_base_splice_with_prefix(key_bytes, key_prefix);
         if next == self.tail {
             return None;
         }
@@ -482,7 +527,7 @@ impl SkipList {
 
         // SAFETY: `next` is a valid node in the arena checked against tail sentinel.
         let next_key = unsafe { (*next).get_key(&self.arena) };
-        if self.compare(key, next_key) == Ordering::Equal {
+        if self.compare(key_bytes, next_key) == Ordering::Equal {
             // SAFETY: `next` is a valid node in the arena.
             let node = unsafe { &*next };
             Some(EntryRef::new(
@@ -497,19 +542,39 @@ impl SkipList {
 
     /// Returns the value slice corresponding to the newest entry matching `key`.
     #[inline]
-    pub fn get_value(&self, key: &[u8]) -> Option<&[u8]> {
+    pub fn get_value<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> Option<&[u8]> {
         self.get(key).map(|e| e.value())
     }
 
     /// Returns `true` if an entry matching `key` exists.
     #[inline]
-    pub fn contains_key(&self, key: &[u8]) -> bool {
-        self.get(key).is_some()
+    pub fn contains_key<K: AsRef<[u8]> + ?Sized>(&self, key: &K) -> bool {
+        let key_bytes = key.as_ref();
+        let key_prefix = compute_prefix(key_bytes);
+        let (_, next) = self.seek_for_base_splice_with_prefix(key_bytes, key_prefix);
+        if next == self.tail {
+            return false;
+        }
+
+        // SAFETY: `next` is checked against tail sentinel.
+        let next_prefix = unsafe { (*next).key_prefix };
+        if key_prefix != next_prefix {
+            return false;
+        }
+
+        // SAFETY: `next` is a valid node in the arena checked against tail sentinel.
+        let next_key = unsafe { (*next).get_key(&self.arena) };
+        self.compare(key_bytes, next_key) == Ordering::Equal
     }
 
     /// Finds an entry matching `key` with an exact `version`.
-    pub fn get_with_version(&self, key: &[u8], version: u64) -> Option<EntryRef<'_>> {
-        let key_prefix = compute_prefix(key);
+    pub fn get_with_version<K: AsRef<[u8]> + ?Sized>(
+        &self,
+        key: &K,
+        version: u64,
+    ) -> Option<EntryRef<'_>> {
+        let key_bytes = key.as_ref();
+        let key_prefix = compute_prefix(key_bytes);
         let mut prev = self.head;
         let mut next: *mut Node = std::ptr::null_mut();
 
@@ -521,7 +586,7 @@ impl SkipList {
                     break;
                 }
 
-                let cmp = self.compare_key_and_prefix(key, key_prefix, next);
+                let cmp = self.compare_key_and_prefix(key_bytes, key_prefix, next);
                 if cmp == Ordering::Less {
                     break;
                 }
@@ -552,9 +617,14 @@ impl SkipList {
     /// Finds the newest entry matching `key` whose version is less than or equal to `max_version`.
     ///
     /// Essential for MVCC snapshot reads (e.g. read at sequence number).
-    pub fn get_version_le(&self, key: &[u8], max_version: u64) -> Option<EntryRef<'_>> {
-        let key_prefix = compute_prefix(key);
-        let (_, mut next) = self.seek_for_base_splice_with_prefix(key, key_prefix);
+    pub fn get_version_le<K: AsRef<[u8]> + ?Sized>(
+        &self,
+        key: &K,
+        max_version: u64,
+    ) -> Option<EntryRef<'_>> {
+        let key_bytes = key.as_ref();
+        let key_prefix = compute_prefix(key_bytes);
+        let (_, mut next) = self.seek_for_base_splice_with_prefix(key_bytes, key_prefix);
         while next != self.tail {
             // SAFETY: `next` is checked against tail sentinel.
             let next_prefix = unsafe { (*next).key_prefix };
@@ -563,7 +633,7 @@ impl SkipList {
             }
             // SAFETY: `next` is checked against tail sentinel.
             let next_key = unsafe { (*next).get_key(&self.arena) };
-            if self.compare(key, next_key) != Ordering::Equal {
+            if self.compare(key_bytes, next_key) != Ordering::Equal {
                 break;
             }
             // SAFETY: `next` is a valid node in the arena.
@@ -579,8 +649,6 @@ impl SkipList {
         }
         None
     }
-
-    #[inline(always)]
     pub(crate) fn seek_for_base_splice(&self, key: &[u8]) -> (*mut Node, *mut Node) {
         let key_prefix = compute_prefix(key);
         self.seek_for_base_splice_with_prefix(key, key_prefix)
