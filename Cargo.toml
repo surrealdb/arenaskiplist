@@ -25,7 +25,6 @@ fastrand = "2.3"
 [dev-dependencies]
 criterion = { version = "0.5.1", features = ["html_reports"] }
 crossbeam-skiplist = "0.1.3"
-artmap = "0.3.1"
 imbl = "7.0"
 
 [[bench]]

@@ -33,21 +33,10 @@ checksum = "33ca55ee147b1926dbea904f50fe4902494e97bc742205abbbf10c709e43815f"
 name = "arenaskiplist"
 version = "0.2.0"
 dependencies = [
- "artmap",
  "criterion",
  "crossbeam-skiplist",
  "fastrand",
  "imbl",
-]
-
-[[package]]
-name = "artmap"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed698869f2211a0c1eee363b448d6fcdd6dcdc77d3c093c2b9f2285c3b050349"
-dependencies = [
- "byteslice",
- "crossbeam-epoch",
 ]
 
 [[package]]
@@ -67,22 +56,6 @@ name = "bytemuck"
 version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
-
-[[package]]
-name = "bytes"
-version = "1.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc652a48c352aef3ea3aed32080501cf3ef6ed5da78602a020c991775b0aff04"
-
-[[package]]
-name = "byteslice"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8330fa105fc493ba2c0f1e8f7a31201717ceffbf8b66dd3079e4a4c1ea20e097"
-dependencies = [
- "bytes",
- "serde",
-]
 
 [[package]]
 name = "cast"

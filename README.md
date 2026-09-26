@@ -22,18 +22,15 @@ It is designed for write-heavy workloads, LSM-tree memtables, WAL buffers, and h
 
 Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Processor @ 5.48 GHz, 128 GB DDR5 RAM**, Linux 6.8):
 
-| Data Structure | Point&nbsp;Read (Random&nbsp;Hit) | Sequential&nbsp;Insert | Random&nbsp;Insert | Range&nbsp;Scan (100&nbsp;items) | Allocations /&nbsp;Insert |
+| Data Structure | Read<br><sup>(with&nbsp;standard&nbsp;key)</sup> | Read<br><sup>(with&nbsp;slice&nbsp;key)</sup> | Insert<br><sup>(sequential&nbsp;entries)</sup> | Insert<br><sup>(random&nbsp;entries)</sup> | Range&nbsp;scans<br><sup>(100&nbsp;items)</sup> |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| **`arenaskiplist::SkipList`**<br><sup>&nbsp;(with Inserter)</sup> | **193.9&nbsp;ns**<br><sup>(5.2M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**21.3&nbsp;ns**<br><sup>(46.9M/s)</sup> | — | **923&nbsp;ns**<br><sup>(108.3M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**0&nbsp;allocs** |
-| **`arenaskiplist::SkipList`**<br><sup>&nbsp;(Standard)</sup> | **193.9&nbsp;ns**<br><sup>(5.2M/s)</sup> | **121.2&nbsp;ns**<br><sup>(8.3M/s)</sup> | **188.2&nbsp;ns**<br><sup>(5.3M/s)</sup> | **923&nbsp;ns**<br><sup>(108.3M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**0&nbsp;allocs** |
-| **`artmap::ArtMap`**<br><sup>&nbsp;(Slice Lookup)</sup> | **19.4&nbsp;ns**<br><sup>(51.5M/s)</sup> | — | — | — | **0&nbsp;allocs** |
-| **`artmap::ArtMap`**<br><sup>&nbsp;(Standard Key)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**18.6&nbsp;ns**<br><sup>(53.9M/s)</sup> | **39.1&nbsp;ns**<br><sup>(25.6M/s)</sup> | **33.4&nbsp;ns**<br><sup>(30.0M/s)</sup> | **542&nbsp;ns**<br><sup>(184.4M/s)</sup> | **1.0&nbsp;allocs** |
-| `crossbeam_skiplist::SkipMap` | 156.7&nbsp;ns<br><sup>(6.4M/s)</sup> | 95.5&nbsp;ns<br><sup>(10.5M/s)</sup> | 278.3&nbsp;ns<br><sup>(3.6M/s)</sup> | 2.20&nbsp;µs<br><sup>(45.4M/s)</sup> | ~1.0&nbsp;allocs |
-| `imbl::OrdMap` | 47.9&nbsp;ns<br><sup>(20.9M/s)</sup> | 81.7&nbsp;ns<br><sup>(12.2M/s)</sup> | 79.0&nbsp;ns<br><sup>(12.7M/s)</sup> | 332&nbsp;ns<br><sup>(300.9M/s)</sup> | ~0.14&nbsp;allocs |
-| `std::collections::BTreeMap` | 69.7&nbsp;ns<br><sup>(14.4M/s)</sup> | 49.6&nbsp;ns<br><sup>(20.2M/s)</sup> | 68.9&nbsp;ns<br><sup>(14.5M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**260&nbsp;ns**<br><sup>(384.3M/s)</sup> | ~0.16&nbsp;allocs |
-| `std::collections::HashMap`* | 11.6&nbsp;ns<br><sup>(86.4M/s)</sup> | 32.0&nbsp;ns<br><sup>(31.2M/s)</sup> | 13.0&nbsp;ns<br><sup>(76.8M/s)</sup> | N/A | ~0&nbsp;allocs |
+| **`arenaskiplist::SkipList`** | **171.9&nbsp;ns**<br><sup>(5.8M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**171.9&nbsp;ns**<br><sup>(5.8M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**39.4&nbsp;ns**<br><sup>(25.4M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**156.4&nbsp;ns**<br><sup>(6.4M/s)</sup> | **793&nbsp;ns**<br><sup>(126.2M/s)</sup> |
+| `crossbeam_skiplist::SkipMap` | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;144.7&nbsp;ns<br><sup>(6.9M/s)</sup> | — | 75.3&nbsp;ns<br><sup>(13.3M/s)</sup> | 176.5&nbsp;ns<br><sup>(5.7M/s)</sup> | 2.19&nbsp;µs<br><sup>(45.7M/s)</sup> |
+| `imbl::OrdMap` | 41.5&nbsp;ns<br><sup>(24.1M/s)</sup> | — | 52.8&nbsp;ns<br><sup>(19.0M/s)</sup> | 74.2&nbsp;ns<br><sup>(13.5M/s)</sup> | 341&nbsp;ns<br><sup>(293M/s)</sup> |
+| `std::collections::BTreeMap` | 58.6&nbsp;ns<br><sup>(17.1M/s)</sup> | — | 31.5&nbsp;ns<br><sup>(31.7M/s)</sup> | 64.7&nbsp;ns<br><sup>(15.5M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**183&nbsp;ns**<br><sup>(546M/s)</sup> |
+| `std::collections::HashMap`* | 13.1&nbsp;ns<br><sup>(76.1M/s)</sup> | — | 18.7&nbsp;ns<br><sup>(53.5M/s)</sup> | 21.1&nbsp;ns<br><sup>(47.4M/s)</sup> | N/A |
 
-<sup>* `std::collections::HashMap` is included as an unordered $O(1)$ reference baseline and does not support range queries, sorted scans, or concurrent multi-writer scaling. The rocket icon denotes the fastest implementation among ordered, concurrent range-scannable maps.</sup>
+<sup>* `std::collections::HashMap` is included as an unordered $O(1)$ reference baseline and does not support range queries, sorted scans, or concurrent multi-writer scaling. The rocket icon denotes the fastest implementation among ordered, concurrent range-scannable maps. Sequential insert times for `arenaskiplist::SkipList` utilize its sequential inserter cache (`Inserter`).</sup>
 
 ### Multi-Threaded Concurrent Performance
 
@@ -43,17 +40,28 @@ Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Pr
 
 | Data Structure | Concurrent&nbsp;Writes<br><sup>(8&nbsp;Threads,&nbsp;100k&nbsp;Ops)</sup> | Mixed&nbsp;Workload<br><sup>(4R&nbsp;+&nbsp;4W,&nbsp;100k&nbsp;Ops)</sup> | Concurrency&nbsp;Model |
 | :--- | ---: | ---: | :--- |
-| **`arenaskiplist::SkipList`** | **20.93&nbsp;ms**<br><sup>(3.8M/s)</sup> | **16.55&nbsp;ms**<br><sup>(4.8M/s)</sup> | Lock-Free Atomic CAS |
-| **`artmap::ArtMap`** | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**5.02&nbsp;ms**<br><sup>(15.9M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**4.02&nbsp;ms**<br><sup>(19.9M/s)</sup> | Non-Blocking Reads + OLC Writes |
-| `crossbeam_skiplist::SkipMap` | 8.14&nbsp;ms<br><sup>(9.82M/s)</sup> | 7.65&nbsp;ms<br><sup>(10.5M/s)</sup> | Lock-Free Atomic CAS |
-| `parking_lot::RwLock<BTreeMap>` | 71.0&nbsp;ms<br><sup>(1.41M/s)</sup> | 38.0&nbsp;ms<br><sup>(2.63M/s)</sup> | Coarse Exclusive Lock |
-| `parking_lot::RwLock<HashMap>`* | 90.2&nbsp;ms<br><sup>(1.11M/s)</sup> | 45.6&nbsp;ms<br><sup>(2.19M/s)</sup> | Coarse Exclusive Lock |
-| `parking_lot::RwLock<imbl::OrdMap>` | 81.0&nbsp;ms<br><sup>(1.24M/s)</sup> | 57.1&nbsp;ms<br><sup>(1.75M/s)</sup> | Coarse Exclusive Lock |
+| **`arenaskiplist::SkipList`** | **40.50&nbsp;ms**<br><sup>(2.47M/s)</sup> | **28.28&nbsp;ms**<br><sup>(3.54M/s)</sup> | Lock-Free Atomic CAS (Contiguous Arena) |
+| `crossbeam_skiplist::SkipMap` | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**10.31&nbsp;ms**<br><sup>(9.70M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**9.69&nbsp;ms**<br><sup>(10.3M/s)</sup> | Lock-Free Atomic CAS |
+| `parking_lot::RwLock<BTreeMap>` | 68.19&nbsp;ms<br><sup>(1.47M/s)</sup> | 38.05&nbsp;ms<br><sup>(2.63M/s)</sup> | Coarse Exclusive Lock |
+| `parking_lot::RwLock<HashMap>`* | 76.64&nbsp;ms<br><sup>(1.30M/s)</sup> | 43.17&nbsp;ms<br><sup>(2.32M/s)</sup> | Coarse Exclusive Lock |
+| `parking_lot::RwLock<imbl::OrdMap>` | 76.39&nbsp;ms<br><sup>(1.31M/s)</sup> | 54.98&nbsp;ms<br><sup>(1.82M/s)</sup> | Coarse Exclusive Lock |
 
-- **Fastest Sequential Ingestion**: With [`Inserter`], `arenaskiplist` achieves **21.3 ns** (46.9M items/sec), which is **nearly 2× faster than `artmap`** (39.1 ns) and **4.5× faster than `crossbeam-skiplist::SkipMap`** (95.5 ns).
-- **Outperforming SkipMap on Random Ingestion**: With inlined 4-byte key prefixes and branchless $p = 1/4$ height generation, standard random inserts run in **188.2 ns** (5.3M items/sec), **32% faster than `crossbeam-skiplist::SkipMap`** (278.3 ns).
-- **2.4× Faster Range Scans than SkipMap**: Traverses 100 items in **923 ns** (108.3M items/sec) compared to **2.20 µs** for `crossbeam-skiplist::SkipMap`.
-- **Zero Dynamic Allocations**: Unlike heap-allocated maps that perform dynamic allocations per entry, `arenaskiplist` operates with **zero heap allocations per insert** by utilizing atomic bump allocation inside the pre-allocated arena buffer.
+### Memory Footprint & Allocation Overhead
+
+Benchmarked with 100,000 keys (64-bit integer keys and 64-bit values), measuring idle data structure size in memory when full, peak heap memory during continuous insertion, allocation frequency, and whole-structure teardown cost:
+
+| Data Structure | Idle&nbsp;Memory<br><sup>(100k&nbsp;items)</sup> | Peak&nbsp;Memory<br><sup>(during&nbsp;ingest)</sup> | Allocations<br><sup>(per&nbsp;insert)</sup> | Teardown&nbsp;/&nbsp;Reset<br><sup>(deallocation&nbsp;cost)</sup> |
+| :--- | ---: | ---: | ---: | :--- |
+| **`arenaskiplist::SkipList`** | **9.42&nbsp;MB**<br><sup>(94.2 B/item)</sup> | **16.00&nbsp;MB** | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**0** | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**$O(1)$ zero-cost reset** |
+| `crossbeam_skiplist::SkipMap` | 3.82&nbsp;MB<br><sup>(38.2 B/item)</sup> | 3.82&nbsp;MB | ~1.0 | $O(N)$ epoch-deferred reclamation |
+| `imbl::OrdMap` | 2.69&nbsp;MB<br><sup>(26.9 B/item)</sup> | 2.69&nbsp;MB | ~0.14 | $O(N)$ recursive heap drop |
+| `std::collections::BTreeMap` | 2.58&nbsp;MB<br><sup>(25.8 B/item)</sup> | 2.58&nbsp;MB | ~0.17 | $O(N)$ recursive heap drop |
+| `std::collections::HashMap`* | 2.13&nbsp;MB<br><sup>(21.3 B/item)</sup> | 3.19&nbsp;MB | ~0 | $O(N)$ heap drop |
+
+- **1.9× Faster Sequential Ingestion than SkipMap**: With [`Inserter`], `arenaskiplist` achieves **39.4 ns** (25.4M items/sec), outperforming `crossbeam-skiplist::SkipMap` by **1.9×** (75.3 ns).
+- **Outperforming SkipMap on Random Ingestion**: With inlined 4-byte key prefixes and branchless $p = 1/4$ height generation, standard random inserts run in **156.4 ns** (6.4M items/sec), **13% faster than `crossbeam-skiplist::SkipMap`** (176.5 ns).
+- **2.76× Faster Range Scans than SkipMap**: Traverses 100 items in **793 ns** (126.2M items/sec) compared to **2.19 µs** for `crossbeam-skiplist::SkipMap`.
+- **Zero Dynamic Allocations & $O(1)$ Reset**: `arenaskiplist` guarantees **0 per-insert heap allocations** by utilizing atomic bump allocation inside the pre-allocated arena buffer, enabling instant **$O(1)$ whole-arena teardown and reuse**.
 
 ## Features
 
@@ -130,15 +138,15 @@ for i in 0..10_000u64 {
 
 ## Architectural Comparison
 
-| Feature | `crossbeam_skiplist::SkipMap` | `artmap::ArtMap` | `arenaskiplist::SkipList` |
-| :--- | :--- | :--- | :--- |
-| **Data Structure** | Lock-Free Skip List | Concurrent Adaptive Radix Tree | **Lock-Free Arena Skip List** |
-| **Memory Allocation** | Dynamic per-node heap allocs | Dynamic node allocs (`Node4`..`Node256`) | **Contiguous Arena (Atomic bump allocation)** |
-| **Memory Reclamation** | Epoch-based (`crossbeam-epoch`) | Epoch-based (`crossbeam-epoch`) | **Bulk $O(1)$ whole-arena drop/reset** |
-| **Allocations / Insert**| ~1.0 allocations | ~1.0 allocations | **0 allocations** |
-| **Sequential Optimization**| None | Prefix-shared latching | **[`Inserter`] Splice Caching** |
-| **MVCC Versioning** | Manual key encoding | Manual key encoding | **Native 64-bit versioning & `get_version_le`** |
-| **Target Workload** | General-purpose concurrent map | High-throughput concurrent map | **LSM MemTables, WAL buffers, Append-heavy caches** |
+| Feature | `crossbeam_skiplist::SkipMap` | `arenaskiplist::SkipList` |
+| :--- | :--- | :--- |
+| **Data Structure** | Lock-Free Skip List | **Lock-Free Arena Skip List** |
+| **Memory Allocation** | Dynamic per-node heap allocs | **Contiguous Arena (Atomic bump allocation)** |
+| **Memory Reclamation** | Epoch-based (`crossbeam-epoch`) | **Bulk $O(1)$ whole-arena drop/reset** |
+| **Allocations / Insert**| ~1.0 allocations | **0 allocations** |
+| **Sequential Optimization**| None | **[`Inserter`] Splice Caching** |
+| **MVCC Versioning** | Manual key encoding | **Native 64-bit versioning & `get_version_le`** |
+| **Target Workload** | General-purpose concurrent map | **LSM MemTables, WAL buffers, Append-heavy caches** |
 
 ## License
 

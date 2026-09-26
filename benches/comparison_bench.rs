@@ -1,5 +1,4 @@
 use arenaskiplist::{Arena, Inserter, SkipList};
-use artmap::ArtMap;
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
 use crossbeam_skiplist::SkipMap;
 use std::collections::{BTreeMap, HashMap};
@@ -35,17 +34,6 @@ fn bench_insert_sequential(c: &mut Criterion) {
         b.iter(|| {
             let k = key.to_be_bytes();
             let _ = list.insert(&k, &k);
-            key += 1;
-        });
-    });
-
-    // artmap ArtMap
-    group.bench_function("artmap", |b| {
-        let map = ArtMap::<[u8; 8], [u8; 8]>::new();
-        let mut key = 0u64;
-        b.iter(|| {
-            let k = key.to_be_bytes();
-            let _ = map.insert(k, k);
             key += 1;
         });
     });
@@ -117,16 +105,7 @@ fn bench_insert_random(c: &mut Criterion) {
         });
     });
 
-    group.bench_function("artmap", |b| {
-        let map = ArtMap::<[u8; 8], [u8; 8]>::new();
-        let mut idx = 0usize;
-        b.iter(|| {
-            let k = &keys[idx % keys.len()];
-            let _ = map.insert(*k, *k);
-            idx += 1;
-        });
-    });
-
+    // crossbeam-skiplist SkipMap
     group.bench_function("crossbeam_skipmap", |b| {
         let map = SkipMap::<[u8; 8], [u8; 8]>::new();
         let mut idx = 0usize;
@@ -177,7 +156,6 @@ fn bench_get_hit(c: &mut Criterion) {
     let arena = Arena::with_capacity(64 * 1024 * 1024);
     let skl = SkipList::new(arena);
     let skip_map = SkipMap::<[u8; 8], [u8; 8]>::new();
-    let art_map = ArtMap::<[u8; 8], [u8; 8]>::new();
     let mut btree_map = BTreeMap::new();
     let mut imbl_map = imbl::OrdMap::new();
     let mut hash_map = HashMap::new();
@@ -186,7 +164,6 @@ fn bench_get_hit(c: &mut Criterion) {
         let k = i.to_be_bytes();
         skl.insert(&k, &k).unwrap();
         skip_map.insert(k, k);
-        art_map.insert(k, k);
         btree_map.insert(k, k);
         imbl_map.insert(k, k);
         hash_map.insert(k, k);
@@ -197,14 +174,6 @@ fn bench_get_hit(c: &mut Criterion) {
         b.iter(|| {
             let k = (rng.u64(0..SAMPLE_SIZE as u64)).to_be_bytes();
             black_box(skl.get_value(&k));
-        });
-    });
-
-    group.bench_function("artmap", |b| {
-        let mut rng = fastrand::Rng::with_seed(0x12345678);
-        b.iter(|| {
-            let k = (rng.u64(0..SAMPLE_SIZE as u64)).to_be_bytes();
-            black_box(art_map.get(&k));
         });
     });
 
@@ -250,7 +219,6 @@ fn bench_range_scan_100(c: &mut Criterion) {
     let arena = Arena::with_capacity(64 * 1024 * 1024);
     let skl = SkipList::new(arena);
     let skip_map = SkipMap::<[u8; 8], [u8; 8]>::new();
-    let art_map = ArtMap::<[u8; 8], [u8; 8]>::new();
     let mut btree_map = BTreeMap::new();
     let mut imbl_map = imbl::OrdMap::new();
 
@@ -258,7 +226,6 @@ fn bench_range_scan_100(c: &mut Criterion) {
         let k = i.to_be_bytes();
         skl.insert(&k, &k).unwrap();
         skip_map.insert(k, k);
-        art_map.insert(k, k);
         btree_map.insert(k, k);
         imbl_map.insert(k, k);
     }
@@ -271,16 +238,6 @@ fn bench_range_scan_100(c: &mut Criterion) {
             let start = (rng.u64(0..scan_limit)).to_be_bytes();
             for e in skl.range(&start[..]..).take(100) {
                 black_box(e);
-            }
-        });
-    });
-
-    group.bench_function("artmap", |b| {
-        let mut rng = fastrand::Rng::with_seed(0x12345678);
-        b.iter(|| {
-            let start = (rng.u64(0..scan_limit)).to_be_bytes();
-            for entry in art_map.range(start..).take(100) {
-                black_box(entry);
             }
         });
     });
@@ -339,38 +296,6 @@ fn bench_concurrent_writes(c: &mut Criterion) {
                             for i in 0..PER_THREAD as u64 {
                                 let k = (start + i).to_be_bytes();
                                 let _ = list.insert(&k, &k);
-                            }
-                        })
-                    })
-                    .collect();
-
-                barrier.wait();
-                let start = Instant::now();
-                for h in handles {
-                    h.join().unwrap();
-                }
-                total += start.elapsed();
-            }
-            total
-        });
-    });
-
-    group.bench_function("artmap", |b| {
-        b.iter_custom(|iters| {
-            let mut total = Duration::ZERO;
-            for _ in 0..iters {
-                let map = Arc::new(ArtMap::<[u8; 8], [u8; 8]>::new());
-                let barrier = Arc::new(Barrier::new(NUM_THREADS + 1));
-                let handles: Vec<_> = (0..NUM_THREADS)
-                    .map(|t| {
-                        let map = Arc::clone(&map);
-                        let barrier = Arc::clone(&barrier);
-                        std::thread::spawn(move || {
-                            barrier.wait();
-                            let start = t as u64 * PER_THREAD as u64;
-                            for i in 0..PER_THREAD as u64 {
-                                let k = (start + i).to_be_bytes();
-                                map.insert(k, k);
                             }
                         })
                     })
@@ -466,56 +391,6 @@ fn bench_concurrent_mixed(c: &mut Criterion) {
                         for _ in 0..PER_THREAD {
                             let k = (rng.u64(0..PRE_POPULATE)).to_be_bytes();
                             black_box(list.get_value(&k));
-                        }
-                    }));
-                }
-
-                barrier.wait();
-                let start = Instant::now();
-                for h in handles {
-                    h.join().unwrap();
-                }
-                total += start.elapsed();
-            }
-            total
-        });
-    });
-
-    group.bench_function("artmap", |b| {
-        b.iter_custom(|iters| {
-            let mut total = Duration::ZERO;
-            for _ in 0..iters {
-                let map = Arc::new(ArtMap::<[u8; 8], [u8; 8]>::new());
-                for i in 0..PRE_POPULATE {
-                    let k = i.to_be_bytes();
-                    map.insert(k, k);
-                }
-
-                let barrier = Arc::new(Barrier::new(NUM_READERS + NUM_WRITERS + 1));
-                let mut handles = Vec::new();
-
-                for t in 0..NUM_WRITERS {
-                    let map = Arc::clone(&map);
-                    let barrier = Arc::clone(&barrier);
-                    handles.push(std::thread::spawn(move || {
-                        barrier.wait();
-                        let start = PRE_POPULATE + (t as u64 * PER_THREAD as u64);
-                        for i in 0..PER_THREAD as u64 {
-                            let k = (start + i).to_be_bytes();
-                            map.insert(k, k);
-                        }
-                    }));
-                }
-
-                for _ in 0..NUM_READERS {
-                    let map = Arc::clone(&map);
-                    let barrier = Arc::clone(&barrier);
-                    handles.push(std::thread::spawn(move || {
-                        let mut rng = fastrand::Rng::with_seed(0x87654321);
-                        barrier.wait();
-                        for _ in 0..PER_THREAD {
-                            let k = (rng.u64(0..PRE_POPULATE)).to_be_bytes();
-                            black_box(map.get(&k));
                         }
                     }));
                 }
