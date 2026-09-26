@@ -45,7 +45,9 @@ pub struct SkipList {
     pub(crate) is_default_cmp: bool,
     pub(crate) head: *mut Node,
     pub(crate) tail: *mut Node,
+    _pad0: [u8; 31],
     pub(crate) height: AtomicU32,
+    _pad1: [u8; 60],
     pub(crate) len: AtomicUsize,
 }
 
@@ -99,7 +101,9 @@ impl SkipList {
             is_default_cmp,
             head,
             tail,
+            _pad0: [0u8; 31],
             height: AtomicU32::new(1),
+            _pad1: [0u8; 60],
             len: AtomicUsize::new(0),
         }
     }

@@ -29,6 +29,7 @@ pub const MAX_ARENA_SIZE: usize = u32::MAX as usize;
 pub struct Arena {
     /// Current allocation offset (atomically incremented).
     n: AtomicU64,
+    _pad: [u8; 56],
     /// Pre-allocated buffer backed by `UnsafeCell<u8>` to grant write provenance
     /// under Stacked Borrows and Tree Borrows.
     buf: Box<[UnsafeCell<u8>]>,
@@ -58,6 +59,7 @@ impl Arena {
         Self {
             // Offset 0 is reserved as the "null" offset.
             n: AtomicU64::new(1),
+            _pad: [0u8; 56],
             buf,
         }
     }
@@ -111,10 +113,6 @@ impl Arena {
     pub fn alloc(&self, size: u32, alignment: u32, overflow: u32) -> Option<u32> {
         debug_assert!(alignment.is_power_of_two());
 
-        let orig_size = self.n.load(Ordering::Relaxed);
-        if orig_size > self.buf.len() as u64 {
-            return None;
-        }
 
         let padded = size as u64 + alignment as u64 - 1;
         let new_size = self.n.fetch_add(padded, Ordering::Relaxed) + padded;
