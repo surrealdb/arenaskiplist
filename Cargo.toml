@@ -1,0 +1,46 @@
+[package]
+name = "arenaskiplist"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.86"
+license = "Apache-2.0"
+readme = "README.md"
+authors = ["Tobie Morgan Hitchcock <tobie@surrealdb.com>"]
+description = "A fast, lock-free, concurrent arena-backed skip list for Rust"
+repository = "https://github.com/surrealdb/arenaskiplist"
+homepage = "https://github.com/surrealdb/arenaskiplist"
+documentation = "https://docs.rs/arenaskiplist"
+keywords = [
+    "skiplist",
+    "arena",
+    "concurrent",
+    "lock-free",
+    "lsm",
+]
+categories = ["data-structures", "concurrency", "database-implementations"]
+
+[dependencies]
+rand = "0.9"
+
+[dev-dependencies]
+criterion = { version = "0.5.1", features = ["html_reports"] }
+crossbeam-skiplist = "0.1.3"
+artmap = { path = "../artmap", version = "0.3" }
+fastrand = "2.3"
+
+[[bench]]
+name = "comparison_bench"
+harness = false
+
+[lints.clippy]
+allow_attributes = "allow"
+assigning_clones = "warn"
+clone_on_ref_ptr = "warn"
+cloned_instead_of_copied = "warn"
+explicit_iter_loop = "warn"
+manual_let_else = "warn"
+match_same_arms = "warn"
+redundant_closure_for_method_calls = "warn"
+semicolon_if_nothing_returned = "warn"
+undocumented_unsafe_blocks = "warn"
+unused_self = "warn"
