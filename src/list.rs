@@ -24,27 +24,15 @@ use crate::entry::EntryRef;
 use crate::error::{Error, Result};
 use crate::inserter::Inserter;
 use crate::iter::Iter;
-use crate::node::{new_node, new_raw_node, Node, MAX_HEIGHT, P_VALUE};
+use crate::node::{compute_prefix, new_node, new_raw_node, Node, MAX_HEIGHT};
 
 /// A custom comparator function for comparing byte slices.
 pub type Comparator = fn(&[u8], &[u8]) -> Ordering;
 
 /// Standard lexicographical byte slice comparator.
+#[inline(always)]
 pub fn default_comparator(a: &[u8], b: &[u8]) -> Ordering {
     a.cmp(b)
-}
-
-fn probabilities() -> &'static [u32; MAX_HEIGHT] {
-    static PROBABILITIES: std::sync::OnceLock<[u32; MAX_HEIGHT]> = std::sync::OnceLock::new();
-    PROBABILITIES.get_or_init(|| {
-        let mut p = [0u32; MAX_HEIGHT];
-        let mut prob = 1.0f64;
-        for p_item in &mut p {
-            *p_item = (u32::MAX as f64 * prob) as u32;
-            prob *= P_VALUE;
-        }
-        p
-    })
 }
 
 /// A concurrent, lock-free skip list allocating all nodes, keys, and values within a shared [`Arena`].
@@ -54,6 +42,7 @@ fn probabilities() -> &'static [u32; MAX_HEIGHT] {
 pub struct SkipList {
     pub(crate) arena: Arc<Arena>,
     pub(crate) cmp: Comparator,
+    pub(crate) is_default_cmp: bool,
     pub(crate) head: *mut Node,
     pub(crate) tail: *mut Node,
     pub(crate) height: AtomicU32,
@@ -77,6 +66,7 @@ impl SkipList {
             .expect("arena is too small to allocate head sentinel node");
         // SAFETY: Initializing freshly allocated head sentinel node.
         unsafe {
+            (*head).key_prefix = 0;
             (*head).key_offset = 0;
         }
 
@@ -84,6 +74,7 @@ impl SkipList {
             .expect("arena is too small to allocate tail sentinel node");
         // SAFETY: Initializing freshly allocated tail sentinel node.
         unsafe {
+            (*tail).key_prefix = u32::MAX;
             (*tail).key_offset = 0;
         }
 
@@ -98,13 +89,54 @@ impl SkipList {
             }
         }
 
+        let is_default_cmp = std::ptr::fn_addr_eq(
+            cmp,
+            default_comparator as for<'a, 'b> fn(&'a [u8], &'b [u8]) -> Ordering,
+        );
         Self {
             arena,
             cmp,
+            is_default_cmp,
             head,
             tail,
             height: AtomicU32::new(1),
             len: AtomicUsize::new(0),
+        }
+    }
+
+    /// Fast-path key comparison: inlines direct slice comparison if using [`default_comparator`].
+    #[inline(always)]
+    pub(crate) fn compare(&self, a: &[u8], b: &[u8]) -> Ordering {
+        if self.is_default_cmp {
+            a.cmp(b)
+        } else {
+            (self.cmp)(a, b)
+        }
+    }
+
+    /// Compares a key against a candidate node, using the inlined key prefix as a fast path.
+    #[inline(always)]
+    pub(crate) fn compare_key_and_prefix(
+        &self,
+        key: &[u8],
+        key_prefix: u32,
+        next: *mut Node,
+    ) -> Ordering {
+        if self.is_default_cmp {
+            // SAFETY: `next` is a valid node pointer in the arena.
+            let next_prefix = unsafe { (*next).key_prefix };
+            match key_prefix.cmp(&next_prefix) {
+                Ordering::Equal => {
+                    // SAFETY: `next` is a valid node pointer in the arena.
+                    let next_key = unsafe { (*next).get_key(&self.arena) };
+                    key.cmp(next_key)
+                }
+                ord => ord,
+            }
+        } else {
+            // SAFETY: `next` is a valid node pointer in the arena.
+            let next_key = unsafe { (*next).get_key(&self.arena) };
+            (self.cmp)(key, next_key)
         }
     }
 
@@ -183,7 +215,8 @@ impl SkipList {
         value: &[u8],
         ins: &mut Inserter,
     ) -> Result<()> {
-        if self.find_splice(key, version, ins) {
+        let key_prefix = compute_prefix(key);
+        if self.find_splice(key, key_prefix, version, ins) {
             return Err(Error::RecordExists);
         }
 
@@ -224,7 +257,8 @@ impl SkipList {
                     }
                 }
 
-                let (new_prev, new_next, found) = self.find_splice_for_level(key, version, i, prev);
+                let (new_prev, new_next, found) =
+                    self.find_splice_for_level(key, key_prefix, version, i, prev);
                 if found {
                     debug_assert_eq!(i, 0, "concurrent duplicate inserted at non-base level");
                     return Err(Error::RecordExists);
@@ -267,17 +301,14 @@ impl SkipList {
         Ok((nd, height))
     }
 
+    /// Branchless geometric height generation (p = 1/4).
+    #[inline(always)]
     fn random_height() -> u32 {
-        let rnd: u32 = fastrand::u32(..);
-        let mut h = 1u32;
-        let probs = probabilities();
-        while h < MAX_HEIGHT as u32 && rnd <= probs[h as usize] {
-            h += 1;
-        }
-        h
+        let zeros = fastrand::u64(..).trailing_zeros();
+        1 + (zeros / 2).min((MAX_HEIGHT - 1) as u32)
     }
 
-    fn find_splice(&self, key: &[u8], version: u64, ins: &mut Inserter) -> bool {
+    fn find_splice(&self, key: &[u8], key_prefix: u32, version: u64, ins: &mut Inserter) -> bool {
         let list_height = self.height();
         let mut level: i32;
         let mut prev = self.head;
@@ -293,8 +324,10 @@ impl SkipList {
                     continue;
                 }
 
-                if (spl.prev != self.head && !self.key_is_after_node(spl.prev, key, version))
-                    || (spl.next != self.tail && self.key_is_after_node(spl.next, key, version))
+                if (spl.prev != self.head
+                    && !self.key_is_after_node(spl.prev, key, key_prefix, version))
+                    || (spl.next != self.tail
+                        && self.key_is_after_node(spl.next, key, key_prefix, version))
                 {
                     level = list_height as i32;
                 } else {
@@ -316,10 +349,7 @@ impl SkipList {
                     break;
                 }
 
-                // SAFETY: `next` is checked against `self.tail` and is a valid node pointer in the arena.
-                let next_key = unsafe { (*next).get_key(&self.arena) };
-                let cmp = (self.cmp)(key, next_key);
-
+                let cmp = self.compare_key_and_prefix(key, key_prefix, next);
                 if cmp == Ordering::Less {
                     break;
                 }
@@ -346,6 +376,7 @@ impl SkipList {
     fn find_splice_for_level(
         &self,
         key: &[u8],
+        key_prefix: u32,
         version: u64,
         level: usize,
         start: *mut Node,
@@ -358,10 +389,7 @@ impl SkipList {
                 return (prev, next, false);
             }
 
-            // SAFETY: `next` is a valid node in the arena checked against tail sentinel.
-            let next_key = unsafe { (*next).get_key(&self.arena) };
-            let cmp = (self.cmp)(key, next_key);
-
+            let cmp = self.compare_key_and_prefix(key, key_prefix, next);
             if cmp == Ordering::Less {
                 return (prev, next, false);
             }
@@ -380,7 +408,7 @@ impl SkipList {
     }
 
     #[inline]
-    fn key_is_after_node(&self, nd: *mut Node, key: &[u8], version: u64) -> bool {
+    fn key_is_after_node(&self, nd: *mut Node, key: &[u8], key_prefix: u32, version: u64) -> bool {
         if nd == self.head {
             return true;
         }
@@ -388,9 +416,22 @@ impl SkipList {
             return false;
         }
 
-        // SAFETY: `nd` is checked non-null and neither head nor tail sentinel.
-        let nd_key = unsafe { (*nd).get_key(&self.arena) };
-        let cmp = (self.cmp)(nd_key, key);
+        let cmp = if self.is_default_cmp {
+            // SAFETY: `nd` is checked non-null and neither head nor tail sentinel.
+            let nd_prefix = unsafe { (*nd).key_prefix };
+            match nd_prefix.cmp(&key_prefix) {
+                Ordering::Equal => {
+                    // SAFETY: `nd` is a valid node in the arena.
+                    let nd_key = unsafe { (*nd).get_key(&self.arena) };
+                    nd_key.cmp(key)
+                }
+                ord => ord,
+            }
+        } else {
+            // SAFETY: `nd` is a valid node in the arena.
+            let nd_key = unsafe { (*nd).get_key(&self.arena) };
+            (self.cmp)(nd_key, key)
+        };
 
         match cmp {
             Ordering::Less => true,
@@ -423,14 +464,21 @@ impl SkipList {
 
     /// Finds the newest entry matching `key`.
     pub fn get(&self, key: &[u8]) -> Option<EntryRef<'_>> {
-        let (_, next) = self.seek_for_base_splice(key);
+        let key_prefix = compute_prefix(key);
+        let (_, next) = self.seek_for_base_splice_with_prefix(key, key_prefix);
         if next == self.tail {
+            return None;
+        }
+
+        // SAFETY: `next` is checked against tail sentinel.
+        let next_prefix = unsafe { (*next).key_prefix };
+        if key_prefix != next_prefix {
             return None;
         }
 
         // SAFETY: `next` is a valid node in the arena checked against tail sentinel.
         let next_key = unsafe { (*next).get_key(&self.arena) };
-        if (self.cmp)(key, next_key) == Ordering::Equal {
+        if self.compare(key, next_key) == Ordering::Equal {
             // SAFETY: `next` is a valid node in the arena.
             let node = unsafe { &*next };
             Some(EntryRef::new(
@@ -457,6 +505,7 @@ impl SkipList {
 
     /// Finds an entry matching `key` with an exact `version`.
     pub fn get_with_version(&self, key: &[u8], version: u64) -> Option<EntryRef<'_>> {
+        let key_prefix = compute_prefix(key);
         let mut prev = self.head;
         let mut next: *mut Node = std::ptr::null_mut();
 
@@ -468,10 +517,7 @@ impl SkipList {
                     break;
                 }
 
-                // SAFETY: `next` is checked against tail sentinel.
-                let next_key = unsafe { (*next).get_key(&self.arena) };
-                let cmp = (self.cmp)(key, next_key);
-
+                let cmp = self.compare_key_and_prefix(key, key_prefix, next);
                 if cmp == Ordering::Less {
                     break;
                 }
@@ -481,6 +527,8 @@ impl SkipList {
                     if version == next_ver {
                         // SAFETY: `next` is a valid node in the arena.
                         let node = unsafe { &*next };
+                        // SAFETY: `next` is a valid node pointer in the arena.
+                        let next_key = unsafe { (*next).get_key(&self.arena) };
                         return Some(EntryRef::new(
                             next_key,
                             next_ver,
@@ -501,11 +549,17 @@ impl SkipList {
     ///
     /// Essential for MVCC snapshot reads (e.g. read at sequence number).
     pub fn get_version_le(&self, key: &[u8], max_version: u64) -> Option<EntryRef<'_>> {
-        let (_, mut next) = self.seek_for_base_splice(key);
+        let key_prefix = compute_prefix(key);
+        let (_, mut next) = self.seek_for_base_splice_with_prefix(key, key_prefix);
         while next != self.tail {
             // SAFETY: `next` is checked against tail sentinel.
+            let next_prefix = unsafe { (*next).key_prefix };
+            if key_prefix != next_prefix {
+                break;
+            }
+            // SAFETY: `next` is checked against tail sentinel.
             let next_key = unsafe { (*next).get_key(&self.arena) };
-            if (self.cmp)(key, next_key) != Ordering::Equal {
+            if self.compare(key, next_key) != Ordering::Equal {
                 break;
             }
             // SAFETY: `next` is a valid node in the arena.
@@ -522,7 +576,17 @@ impl SkipList {
         None
     }
 
-    fn seek_for_base_splice(&self, key: &[u8]) -> (*mut Node, *mut Node) {
+    #[inline(always)]
+    pub(crate) fn seek_for_base_splice(&self, key: &[u8]) -> (*mut Node, *mut Node) {
+        let key_prefix = compute_prefix(key);
+        self.seek_for_base_splice_with_prefix(key, key_prefix)
+    }
+
+    pub(crate) fn seek_for_base_splice_with_prefix(
+        &self,
+        key: &[u8],
+        key_prefix: u32,
+    ) -> (*mut Node, *mut Node) {
         let mut prev = self.head;
         let mut next: *mut Node = std::ptr::null_mut();
 
@@ -534,9 +598,7 @@ impl SkipList {
                     break;
                 }
 
-                // SAFETY: `next` is checked against tail sentinel.
-                let next_key = unsafe { (*next).get_key(&self.arena) };
-                let cmp = (self.cmp)(key, next_key);
+                let cmp = self.compare_key_and_prefix(key, key_prefix, next);
                 if cmp <= Ordering::Equal {
                     break;
                 }
