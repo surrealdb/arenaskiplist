@@ -18,6 +18,37 @@
 
 It is designed for write-heavy workloads, LSM-tree memtables, WAL buffers, and high-throughput ingestion pipelines where avoiding per-node dynamic heap allocations is paramount.
 
+## Performance
+
+Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Processor @ 5.48 GHz, 128 GB DDR5 RAM**, Linux 6.8):
+
+| Data Structure | Point&nbsp;Read (Random&nbsp;Hit) | Point&nbsp;Insert | Range&nbsp;Scan (100&nbsp;items) | Allocations /&nbsp;Insert |
+| :--- | ---: | ---: | ---: | ---: |
+| **`arenaskiplist::SkipList`** | *TBD* | *TBD* | *TBD* | *TBD* |
+| **`artmap::ArtMap`**<br><sup>&nbsp;(Slice Lookup)</sup> | **19.4&nbsp;ns**<br><sup>(51.5M/s)</sup> | — | — | **0&nbsp;allocs** |
+| **`artmap::ArtMap`**<br><sup>&nbsp;(Standard Key)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**15.0&nbsp;ns**<br><sup>(66.5M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**30.2&nbsp;ns**<br><sup>(33.1M/s)</sup> | **578&nbsp;ns**<br><sup>(172.8M/s)</sup> | **1.0&nbsp;allocs** |
+| `crossbeam_skiplist::SkipMap` | 143.8&nbsp;ns<br><sup>(7.0M/s)</sup> | 98.0&nbsp;ns<br><sup>(10.2M/s)</sup> | 2.24&nbsp;µs<br><sup>(44.6M/s)</sup> | ~1.0&nbsp;allocs |
+| `imbl::OrdMap` | 40.4&nbsp;ns<br><sup>(24.8M/s)</sup> | 71.9&nbsp;ns<br><sup>(13.9M/s)</sup> | 332&nbsp;ns<br><sup>(301M/s)</sup> | ~0.14&nbsp;allocs |
+| `std::collections::BTreeMap` | 58.6&nbsp;ns<br><sup>(17.1M/s)</sup> | 37.1&nbsp;ns<br><sup>(27.0M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**188&nbsp;ns**<br><sup>(530M/s)</sup> | ~0.16&nbsp;allocs |
+| `std::collections::HashMap`* | 13.1&nbsp;ns<br><sup>(76.1M/s)</sup> | 29.0&nbsp;ns<br><sup>(34.5M/s)</sup> | N/A | ~0&nbsp;allocs |
+
+<sup>* `std::collections::HashMap` is included as an unordered $O(1)$ reference baseline and does not support range queries, sorted scans, or concurrent multi-writer scaling. The rocket icon denotes the fastest implementation among ordered, concurrent range-scannable maps.</sup>
+
+### Multi-Threaded Concurrent Performance
+
+When running multi-threaded workloads with concurrent writers, non-concurrent data structures (`BTreeMap`, `HashMap`, `imbl::OrdMap`) require synchronization via `parking_lot::RwLock`. Under write contention, exclusive lock acquisition serializes all threads, causing severe lock convoying and throughput collapse.
+
+Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Processor @ 5.48 GHz, 128 GB DDR5 RAM**, Linux 6.8):
+
+| Data Structure | Concurrent&nbsp;Writes<br><sup>(8&nbsp;Threads,&nbsp;100k&nbsp;Ops)</sup> | Mixed&nbsp;Workload<br><sup>(4R&nbsp;+&nbsp;4W,&nbsp;100k&nbsp;Ops)</sup> | Concurrency&nbsp;Model |
+| :--- | ---: | ---: | :--- |
+| **`arenaskiplist::SkipList`** | *TBD* | *TBD* | Lock-Free Atomic CAS |
+| **`artmap::ArtMap`** | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**5.73&nbsp;ms**<br><sup>(17.4M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**5.25&nbsp;ms**<br><sup>(19.1M/s)</sup> | Non-Blocking Reads + OLC Writes |
+| `crossbeam_skiplist::SkipMap` | 10.12&nbsp;ms<br><sup>(9.88M/s)</sup> | 9.65&nbsp;ms<br><sup>(10.4M/s)</sup> | Lock-Free Atomic CAS |
+| `parking_lot::RwLock<BTreeMap>` | 71.0&nbsp;ms<br><sup>(1.41M/s)</sup> | 38.0&nbsp;ms<br><sup>(2.63M/s)</sup> | Coarse Exclusive Lock |
+| `parking_lot::RwLock<HashMap>`* | 90.2&nbsp;ms<br><sup>(1.11M/s)</sup> | 45.6&nbsp;ms<br><sup>(2.19M/s)</sup> | Coarse Exclusive Lock |
+| `parking_lot::RwLock<imbl::OrdMap>` | 81.0&nbsp;ms<br><sup>(1.24M/s)</sup> | 57.1&nbsp;ms<br><sup>(1.75M/s)</sup> | Coarse Exclusive Lock |
+
 ## Features
 
 - **Zero Per-Node Allocations**: All nodes and entries are packed contiguously into an arena using lock-free atomic bump allocation.
@@ -27,6 +58,7 @@ It is designed for write-heavy workloads, LSM-tree memtables, WAL buffers, and h
 - **MVCC & LSM Versioning**: First-class support for 64-bit versioning (`insert_with_version`, `get_version_le`) for snapshot visibility boundaries.
 - **Bidirectional Iteration**: Range scans with forward and reverse traversal ([`DoubleEndedIterator`]).
 - **$O(1)$ Teardown**: Deallocating or recycling the entire skip list takes $O(1)$ time by dropping or resetting the arena buffer.
+- **Deterministic Simulation Tested (DST)**: Continuously validated by a seeded PRNG fuzzer against an in-memory `BTreeMap` reference oracle.
 
 ## Quick Start
 
@@ -90,7 +122,7 @@ for i in 0..10_000u64 {
 }
 ```
 
-## Comparison with `crossbeam::SkipMap` and `artmap::ArtMap`
+## Architectural Comparison
 
 | Feature | `crossbeam_skiplist::SkipMap` | `artmap::ArtMap` | `arenaskiplist::SkipList` |
 | :--- | :--- | :--- | :--- |

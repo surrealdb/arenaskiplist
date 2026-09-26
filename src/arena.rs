@@ -46,6 +46,7 @@ impl Arena {
     /// Creates a new arena with the specified byte capacity.
     ///
     /// The capacity will be clamped to [`MAX_ARENA_SIZE`].
+    #[cfg_attr(target_pointer_width = "32", allow(clippy::unnecessary_min_or_max))]
     pub fn new(capacity: usize) -> Self {
         let capacity = capacity.min(MAX_ARENA_SIZE);
         let buf: Box<[u8]> = vec![0u8; capacity].into_boxed_slice();

@@ -19,8 +19,6 @@ use std::ops::{Bound, RangeBounds};
 use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering as AtomicOrdering};
 use std::sync::Arc;
 
-use rand::Rng;
-
 use crate::arena::Arena;
 use crate::entry::EntryRef;
 use crate::error::{Error, Result};
@@ -270,7 +268,7 @@ impl SkipList {
     }
 
     fn random_height() -> u32 {
-        let rnd: u32 = rand::rng().random();
+        let rnd: u32 = fastrand::u32(..);
         let mut h = 1u32;
         let probs = probabilities();
         while h < MAX_HEIGHT as u32 && rnd <= probs[h as usize] {
