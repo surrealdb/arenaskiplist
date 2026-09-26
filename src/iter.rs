@@ -137,7 +137,8 @@ impl<'a> Iter<'a> {
         if let Some(lower) = self.lower.clone() {
             self.seek_ge(&lower);
             if !self.lower_inclusive && self.is_valid() {
-                while self.is_valid() && (self.list.cmp)(self.node_key(), &lower) == Ordering::Equal
+                while self.is_valid()
+                    && self.list.compare(self.node_key(), &lower) == Ordering::Equal
                 {
                     self.advance();
                 }
@@ -162,7 +163,7 @@ impl<'a> Iter<'a> {
         if let Some(upper) = self.upper.clone() {
             while self.nd != self.list.head && self.nd != self.list.tail && !self.nd.is_null() {
                 let k = self.node_key();
-                let cmp = (self.list.cmp)(k, &upper);
+                let cmp = self.list.compare(k, &upper);
                 if cmp == Ordering::Less || (cmp == Ordering::Equal && self.upper_inclusive) {
                     break;
                 }
@@ -177,7 +178,7 @@ impl<'a> Iter<'a> {
         if let Some(lower) = self.lower.clone() {
             if self.is_valid() {
                 let k = self.node_key();
-                let cmp = (self.list.cmp)(k, &lower);
+                let cmp = self.list.compare(k, &lower);
                 if cmp == Ordering::Less || (cmp == Ordering::Equal && !self.lower_inclusive) {
                     self.lower_node = self.nd;
                     self.nd = self.list.head;
@@ -222,7 +223,7 @@ impl<'a> Iter<'a> {
     pub fn seek_ge(&mut self, target: &[u8]) {
         self.started = true;
         self.exhausted = false;
-        let (_, next) = self.seek_for_base_splice(target);
+        let (_, next) = self.list.seek_for_base_splice(target);
         self.nd = next;
         self.check_upper_bound();
     }
@@ -236,7 +237,7 @@ impl<'a> Iter<'a> {
         if let Some(ref upper) = self.upper {
             if !self.nd.is_null() && self.nd != self.list.head {
                 let current_key = self.node_key();
-                let cmp = (self.list.cmp)(current_key, upper);
+                let cmp = self.list.compare(current_key, upper);
                 if cmp == Ordering::Greater || (cmp == Ordering::Equal && !self.upper_inclusive) {
                     self.upper_node = self.nd;
                     self.nd = self.list.tail;
@@ -244,31 +245,6 @@ impl<'a> Iter<'a> {
                 }
             }
         }
-    }
-
-    fn seek_for_base_splice(&self, key: &[u8]) -> (*mut Node, *mut Node) {
-        let mut prev = self.list.head;
-        let mut next: *mut Node = std::ptr::null_mut();
-
-        for level in (0..self.list.height() as usize).rev() {
-            let prev_level_next = next;
-            loop {
-                next = self.list.get_next(prev, level);
-                if next == prev_level_next || next == self.list.tail {
-                    break;
-                }
-
-                // SAFETY: `next` is a valid node in the arena checked against tail sentinel.
-                let next_key = unsafe { (*next).get_key(&self.list.arena) };
-                let cmp = (self.list.cmp)(key, next_key);
-                if cmp <= Ordering::Equal {
-                    break;
-                }
-                prev = next;
-            }
-        }
-
-        (prev, next)
     }
 }
 

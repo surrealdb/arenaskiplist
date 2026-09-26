@@ -20,8 +20,8 @@ use std::sync::atomic::{AtomicU32, Ordering as AtomicOrdering};
 /// Maximum height of a skiplist tower.
 pub const MAX_HEIGHT: usize = 20;
 
-/// Probability factor for tower height generation (1 / e ~ 0.368).
-pub(crate) const P_VALUE: f64 = 1.0 / std::f64::consts::E;
+/// Probability factor for tower height generation (1 / 4 = 0.25).
+pub const P_VALUE: f64 = 0.25;
 
 /// Skiplist node allocation alignment.
 pub const NODE_ALIGNMENT: u32 = 8;
@@ -42,20 +42,30 @@ impl Links {
 
 pub(crate) const LINKS_SIZE: usize = std::mem::size_of::<Links>();
 
+/// Computes a big-endian 4-byte prefix from the start of a key.
+/// Shorter keys are right-padded with zero bytes.
+#[inline(always)]
+pub(crate) fn compute_prefix(key: &[u8]) -> u32 {
+    let mut buf = [0u8; 4];
+    let len = key.len().min(4);
+    buf[..len].copy_from_slice(&key[..len]);
+    u32::from_be_bytes(buf)
+}
+
 /// Internal node structure stored inside the arena.
 /// Key and value bytes are stored contiguously directly after the tower.
 #[repr(C)]
 pub(crate) struct Node {
+    /// Inlined 4-byte key prefix for fast scalar comparisons.
+    pub(crate) key_prefix: u32,
     /// Offset to key bytes in arena.
     pub(crate) key_offset: u32,
-    /// Size of key in bytes.
-    pub(crate) key_size: u32,
     /// Monotonic version (or MVCC trailer) associated with this key.
     pub(crate) key_version: u64,
+    /// Size of key in bytes.
+    pub(crate) key_size: u32,
     /// Size of value in bytes.
     pub(crate) value_size: u32,
-    /// Padding for 8-byte alignment of the tower links.
-    pub(crate) _padding: u32,
     /// Variable-height tower links.
     pub(crate) tower: [Links; 1],
 }
@@ -154,6 +164,7 @@ pub(crate) fn new_raw_node(
     let nd = arena.get_pointer_mut(node_offset) as *mut Node;
     // SAFETY: `nd` was freshly allocated by `arena.alloc` with valid alignment and capacity.
     unsafe {
+        (*nd).key_prefix = 0;
         (*nd).key_offset = node_offset + node_size as u32;
         (*nd).key_size = key_size;
         (*nd).value_size = value_size;
@@ -178,6 +189,7 @@ pub(crate) fn new_node(
 
     // SAFETY: Writer exclusively owns the newly allocated arena offset range before linking.
     unsafe {
+        (*nd).key_prefix = compute_prefix(key);
         (*nd).key_version = version;
         let key_bytes = arena.get_bytes_mut((*nd).key_offset, (*nd).key_size);
         key_bytes.copy_from_slice(key);
