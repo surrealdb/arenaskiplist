@@ -113,7 +113,6 @@ impl Arena {
     pub fn alloc(&self, size: u32, alignment: u32, overflow: u32) -> Option<u32> {
         debug_assert!(alignment.is_power_of_two());
 
-
         let padded = size as u64 + alignment as u64 - 1;
         let new_size = self.n.fetch_add(padded, Ordering::Relaxed) + padded;
         if new_size + overflow as u64 > self.buf.len() as u64 {
