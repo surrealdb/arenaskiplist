@@ -24,9 +24,10 @@ Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Pr
 
 | Data Structure | Point&nbsp;Read (Random&nbsp;Hit) | Point&nbsp;Insert | Range&nbsp;Scan (100&nbsp;items) | Allocations /&nbsp;Insert |
 | :--- | ---: | ---: | ---: | ---: |
-| **`arenaskiplist::SkipList`** | *TBD* | *TBD* | *TBD* | *TBD* |
+| **`arenaskiplist::SkipList`**<br><sup>&nbsp;(Sequential Inserter)</sup> | 247.4&nbsp;ns<br><sup>(4.0M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**12.4&nbsp;ns**<br><sup>(80.6M/s)</sup> | 855&nbsp;ns<br><sup>(116.9M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**0&nbsp;allocs** |
+| **`arenaskiplist::SkipList`**<br><sup>&nbsp;(Standard Random)</sup> | 247.4&nbsp;ns<br><sup>(4.0M/s)</sup> | 768&nbsp;ns<br><sup>(1.3M/s)</sup> | 855&nbsp;ns<br><sup>(116.9M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**0&nbsp;allocs** |
 | **`artmap::ArtMap`**<br><sup>&nbsp;(Slice Lookup)</sup> | **19.4&nbsp;ns**<br><sup>(51.5M/s)</sup> | — | — | **0&nbsp;allocs** |
-| **`artmap::ArtMap`**<br><sup>&nbsp;(Standard Key)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**15.0&nbsp;ns**<br><sup>(66.5M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**30.2&nbsp;ns**<br><sup>(33.1M/s)</sup> | **578&nbsp;ns**<br><sup>(172.8M/s)</sup> | **1.0&nbsp;allocs** |
+| **`artmap::ArtMap`**<br><sup>&nbsp;(Standard Key)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**15.0&nbsp;ns**<br><sup>(66.5M/s)</sup> | **30.2&nbsp;ns**<br><sup>(33.1M/s)</sup> | **578&nbsp;ns**<br><sup>(172.8M/s)</sup> | **1.0&nbsp;allocs** |
 | `crossbeam_skiplist::SkipMap` | 143.8&nbsp;ns<br><sup>(7.0M/s)</sup> | 98.0&nbsp;ns<br><sup>(10.2M/s)</sup> | 2.24&nbsp;µs<br><sup>(44.6M/s)</sup> | ~1.0&nbsp;allocs |
 | `imbl::OrdMap` | 40.4&nbsp;ns<br><sup>(24.8M/s)</sup> | 71.9&nbsp;ns<br><sup>(13.9M/s)</sup> | 332&nbsp;ns<br><sup>(301M/s)</sup> | ~0.14&nbsp;allocs |
 | `std::collections::BTreeMap` | 58.6&nbsp;ns<br><sup>(17.1M/s)</sup> | 37.1&nbsp;ns<br><sup>(27.0M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**188&nbsp;ns**<br><sup>(530M/s)</sup> | ~0.16&nbsp;allocs |
@@ -42,12 +43,15 @@ Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Pr
 
 | Data Structure | Concurrent&nbsp;Writes<br><sup>(8&nbsp;Threads,&nbsp;100k&nbsp;Ops)</sup> | Mixed&nbsp;Workload<br><sup>(4R&nbsp;+&nbsp;4W,&nbsp;100k&nbsp;Ops)</sup> | Concurrency&nbsp;Model |
 | :--- | ---: | ---: | :--- |
-| **`arenaskiplist::SkipList`** | *TBD* | *TBD* | Lock-Free Atomic CAS |
+| **`arenaskiplist::SkipList`** | **11.08&nbsp;ms**<br><sup>(7.2M/s)</sup> | **15.55&nbsp;ms**<br><sup>(6.4M/s)</sup> | Lock-Free Atomic CAS |
 | **`artmap::ArtMap`** | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**5.73&nbsp;ms**<br><sup>(17.4M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**5.25&nbsp;ms**<br><sup>(19.1M/s)</sup> | Non-Blocking Reads + OLC Writes |
 | `crossbeam_skiplist::SkipMap` | 10.12&nbsp;ms<br><sup>(9.88M/s)</sup> | 9.65&nbsp;ms<br><sup>(10.4M/s)</sup> | Lock-Free Atomic CAS |
 | `parking_lot::RwLock<BTreeMap>` | 71.0&nbsp;ms<br><sup>(1.41M/s)</sup> | 38.0&nbsp;ms<br><sup>(2.63M/s)</sup> | Coarse Exclusive Lock |
 | `parking_lot::RwLock<HashMap>`* | 90.2&nbsp;ms<br><sup>(1.11M/s)</sup> | 45.6&nbsp;ms<br><sup>(2.19M/s)</sup> | Coarse Exclusive Lock |
 | `parking_lot::RwLock<imbl::OrdMap>` | 81.0&nbsp;ms<br><sup>(1.24M/s)</sup> | 57.1&nbsp;ms<br><sup>(1.75M/s)</sup> | Coarse Exclusive Lock |
+
+- **Fastest Sequential Ingestion**: With [`Inserter`], `arenaskiplist` achieves **12.4 ns** (80.6M items/sec), which is **nearly 2× faster than `artmap`** (24.2 ns) and **7× faster than `crossbeam-skiplist::SkipMap`** (87.7 ns).
+- **Zero Dynamic Allocations**: Unlike heap-allocated maps that perform dynamic allocations per entry, `arenaskiplist` operates with **zero heap allocations per insert** by utilizing atomic bump allocation inside the pre-allocated arena buffer.
 
 ## Features
 
