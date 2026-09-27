@@ -24,13 +24,13 @@ Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Pr
 
 | Data Structure | Read<br><sup>(with&nbsp;standard&nbsp;key)</sup> | Read<br><sup>(with&nbsp;slice&nbsp;key)</sup> | Insert<br><sup>(sequential&nbsp;entries)</sup> | Insert<br><sup>(random&nbsp;entries)</sup> | Range&nbsp;scans<br><sup>(100&nbsp;items)</sup> |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| **`arenaskiplist::SkipList`** | **171.9&nbsp;ns**<br><sup>(5.8M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**171.9&nbsp;ns**<br><sup>(5.8M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**39.4&nbsp;ns**<br><sup>(25.4M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**156.4&nbsp;ns**<br><sup>(6.4M/s)</sup> | **793&nbsp;ns**<br><sup>(126.2M/s)</sup> |
-| `crossbeam_skiplist::SkipMap` | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;144.7&nbsp;ns<br><sup>(6.9M/s)</sup> | — | 75.3&nbsp;ns<br><sup>(13.3M/s)</sup> | 176.5&nbsp;ns<br><sup>(5.7M/s)</sup> | 2.19&nbsp;µs<br><sup>(45.7M/s)</sup> |
-| `scc::TreeIndex` | 51.6&nbsp;ns<br><sup>(19.4M/s)</sup> | — | 23.1&nbsp;ns<br><sup>(43.3M/s)</sup> | 93.7&nbsp;ns<br><sup>(10.7M/s)</sup> | 273&nbsp;ns<br><sup>(366M/s)</sup> |
+| **`arenaskiplist::SkipList`** | 171.9&nbsp;ns<br><sup>(5.8M/s)</sup> | 171.9&nbsp;ns<br><sup>(5.8M/s)</sup> | 39.4&nbsp;ns<br><sup>(25.4M/s)</sup> | 156.4&nbsp;ns<br><sup>(6.4M/s)</sup> | 793&nbsp;ns<br><sup>(126.2M/s)</sup> |
+| `crossbeam_skiplist::SkipMap` | 144.7&nbsp;ns<br><sup>(6.9M/s)</sup> | — | 75.3&nbsp;ns<br><sup>(13.3M/s)</sup> | 176.5&nbsp;ns<br><sup>(5.7M/s)</sup> | 2.19&nbsp;µs<br><sup>(45.7M/s)</sup> |
+| `scc::TreeIndex` | 51.6&nbsp;ns<br><sup>(19.4M/s)</sup> | — | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**23.1&nbsp;ns**<br><sup>(43.3M/s)</sup> | 93.7&nbsp;ns<br><sup>(10.7M/s)</sup> | 273&nbsp;ns<br><sup>(366M/s)</sup> |
 | `concread::bptree::BPTree` | 46.2&nbsp;ns<br><sup>(21.6M/s)</sup> | — | 26.5&nbsp;ns<br><sup>(37.7M/s)</sup> | 66.6&nbsp;ns<br><sup>(15.0M/s)</sup> | 371&nbsp;ns<br><sup>(269.5M/s)</sup> |
 | `imbl::OrdMap` | 41.5&nbsp;ns<br><sup>(24.1M/s)</sup> | — | 52.8&nbsp;ns<br><sup>(19.0M/s)</sup> | 74.2&nbsp;ns<br><sup>(13.5M/s)</sup> | 341&nbsp;ns<br><sup>(293M/s)</sup> |
-| `vart::Tree` | 28.9&nbsp;ns<br><sup>(34.6M/s)</sup> | 27.3&nbsp;ns<br><sup>(36.6M/s)</sup> | 83.2&nbsp;ns<br><sup>(12.0M/s)</sup> | 114.6&nbsp;ns<br><sup>(8.7M/s)</sup> | 819&nbsp;ns<br><sup>(122.1M/s)</sup> |
-| `std::collections::BTreeMap` | 58.6&nbsp;ns<br><sup>(17.1M/s)</sup> | — | 31.5&nbsp;ns<br><sup>(31.7M/s)</sup> | 64.7&nbsp;ns<br><sup>(15.5M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**183&nbsp;ns**<br><sup>(546M/s)</sup> |
+| `vart::Tree` | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**28.9&nbsp;ns**<br><sup>(34.6M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**27.3&nbsp;ns**<br><sup>(36.6M/s)</sup> | 83.2&nbsp;ns<br><sup>(12.0M/s)</sup> | 114.6&nbsp;ns<br><sup>(8.7M/s)</sup> | 819&nbsp;ns<br><sup>(122.1M/s)</sup> |
+| `std::collections::BTreeMap` | 58.6&nbsp;ns<br><sup>(17.1M/s)</sup> | — | 31.5&nbsp;ns<br><sup>(31.7M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**64.7&nbsp;ns**<br><sup>(15.5M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**183&nbsp;ns**<br><sup>(546M/s)</sup> |
 | `dashmap::DashMap`* | 18.7&nbsp;ns<br><sup>(53.5M/s)</sup> | — | 20.9&nbsp;ns<br><sup>(47.8M/s)</sup> | 19.3&nbsp;ns<br><sup>(51.8M/s)</sup> | N/A |
 | `papaya::HashMap`* | 18.8&nbsp;ns<br><sup>(53.2M/s)</sup> | — | 30.4&nbsp;ns<br><sup>(32.9M/s)</sup> | 32.8&nbsp;ns<br><sup>(30.5M/s)</sup> | N/A |
 | `scc::HashIndex`* | 20.2&nbsp;ns<br><sup>(49.5M/s)</sup> | — | 18.7&nbsp;ns<br><sup>(53.5M/s)</sup> | 19.8&nbsp;ns<br><sup>(50.5M/s)</sup> | N/A |
@@ -47,9 +47,9 @@ Benchmarked on bare metal (**AMD Ryzen Threadripper 9970X 32-Core / 64-Thread Pr
 | Data Structure | Concurrent&nbsp;Writes<br><sup>(8&nbsp;Threads,&nbsp;100k&nbsp;Ops)</sup> | Mixed&nbsp;Workload<br><sup>(4R&nbsp;+&nbsp;4W,&nbsp;100k&nbsp;Ops)</sup> | Concurrency&nbsp;Model |
 | :--- | ---: | ---: | :--- |
 | **`arenaskiplist::SkipList`** | **40.50&nbsp;ms**<br><sup>(2.47M/s)</sup> | **28.28&nbsp;ms**<br><sup>(3.54M/s)</sup> | Lock-Free Atomic CAS (Contiguous Arena) |
-| `scc::TreeIndex` | 1.96&nbsp;ms<br><sup>(51.0M/s)</sup> | 3.67&nbsp;ms<br><sup>(27.2M/s)</sup> | Lock-Free Reads + Node Latching (B-Link) |
+| `scc::TreeIndex` | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**1.96&nbsp;ms**<br><sup>(51.0M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**3.67&nbsp;ms**<br><sup>(27.2M/s)</sup> | Lock-Free Reads + Node Latching (B-Link) |
 | `concread::bptree::BPTree` | 8.63&nbsp;ms<br><sup>(11.6M/s)</sup> | 6.23&nbsp;ms<br><sup>(16.1M/s)</sup> | Lock-Free Reads + Single-Writer CoW (MVCC) |
-| `crossbeam_skiplist::SkipMap` | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**10.31&nbsp;ms**<br><sup>(9.70M/s)</sup> | <img width="16" align="absmiddle" src="/img/rocket.png" alt="🚀">&nbsp;**9.69&nbsp;ms**<br><sup>(10.3M/s)</sup> | Lock-Free Atomic CAS |
+| `crossbeam_skiplist::SkipMap` | 10.31&nbsp;ms<br><sup>(9.70M/s)</sup> | 9.69&nbsp;ms<br><sup>(10.3M/s)</sup> | Lock-Free Atomic CAS |
 | `dashmap::DashMap`* | 3.67&nbsp;ms<br><sup>(27.2M/s)</sup> | 5.10&nbsp;ms<br><sup>(19.6M/s)</sup> | Fine-Grained Sharded RwLock |
 | `papaya::HashMap`* | 4.26&nbsp;ms<br><sup>(23.5M/s)</sup> | 6.12&nbsp;ms<br><sup>(16.3M/s)</sup> | Lock-Free Reads + Fine-Grained Latching (EBR) |
 | `scc::HashIndex`* | 2.40&nbsp;ms<br><sup>(41.7M/s)</sup> | 2.85&nbsp;ms<br><sup>(35.1M/s)</sup> | Lock-Free Reads + Bucket Latching |
