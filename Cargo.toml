@@ -28,6 +28,9 @@ crossbeam-skiplist = "0.1.3"
 imbl = "7.0"
 dashmap = "6.1"
 papaya = "0.2"
+scc = "3.8"
+concread = "0.5"
+vart = "0.10"
 
 [[bench]]
 name = "comparison_bench"
